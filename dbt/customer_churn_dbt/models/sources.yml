@@ -1,0 +1,56 @@
+version: 2
+
+sources:
+  - name: bronze
+    database: customer_churn_project
+    schema: bronze
+    tables:
+      - name: online_retail
+        description: "Raw UCI Online Retail transactions ingested from CSV via Unity Catalog Volume"
+        columns:
+          - name: InvoiceNo
+            description: "Invoice number. Prefixed with 'C' for cancellations/returns"
+          - name: StockCode
+            description: "Product code"
+          - name: Description
+            description: "Product description"
+          - name: Quantity
+            description: "Quantity per transaction line. Negative values indicate returns"
+          - name: InvoiceDate
+            description: "Invoice timestamp in dd-MM-yyyy HH:mm format"
+          - name: UnitPrice
+            description: "Price per unit in GBP. Zero/negative values indicate errors or free items"
+          - name: CustomerID
+            description: "Unique customer identifier. NULL for ~25% of rows (unusable for customer analytics)"
+          - name: Country
+            description: "Customer country. UK dominates at ~92%"
+
+      - name: customers_simulated
+        description: "Customer-level aggregates with simulated subscription tier, monthly fee, and churn label"
+        columns:
+          - name: CustomerID
+            description: "Unique customer identifier"
+          - name: first_purchase_date
+            description: "Customer's first transaction date"
+          - name: last_purchase_date
+            description: "Customer's last transaction date"
+          - name: transaction_count
+            description: "Total number of transactions"
+          - name: total_spend
+            description: "Total lifetime spend"
+          - name: total_items
+            description: "Total items purchased"
+          - name: unique_products
+            description: "Number of unique products purchased"
+          - name: country
+            description: "Customer country"
+          - name: recency_days
+            description: "Days since last purchase"
+          - name: tenure_days
+            description: "Days between first and last purchase"
+          - name: subscription_tier
+            description: "Simulated tier: Basic, Standard, Premium, Enterprise"
+          - name: monthly_fee
+            description: "Simulated monthly subscription fee"
+          - name: churn_label
+            description: "1 if inactive >90 days, 0 otherwise"

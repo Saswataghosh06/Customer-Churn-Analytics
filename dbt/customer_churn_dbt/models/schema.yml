@@ -1,0 +1,228 @@
+version: 2
+
+models:
+  # ───────────────────────────────────────────────
+  # SILVER MODELS
+  # ───────────────────────────────────────────────
+
+  - name: stg_transactions
+    description: >
+      Cleaned transaction data from Bronze layer. 
+      Applies EDA-informed filters: NULL CustomerIDs removed, cancellations excluded,
+      negative quantities/prices filtered, duplicates removed, dates parsed from dd-MM-yyyy HH:mm format.
+    columns:
+      - name: InvoiceNo
+        description: "Clean invoice number (no 'C' prefix cancellations)"
+        tests:
+          - not_null
+      - name: StockCode
+        description: "Product code"
+        tests:
+          - not_null
+      - name: Quantity
+        description: "Valid quantity (> 0)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+      - name: invoice_timestamp
+        description: "Parsed invoice timestamp"
+        tests:
+          - not_null
+      - name: UnitPrice
+        description: "Valid unit price (> 0)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0.01
+      - name: CustomerID
+        description: "Valid customer identifier (NULLs filtered out)"
+        tests:
+          - not_null
+      - name: line_total
+        description: "Engineered revenue metric: Quantity * UnitPrice"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0.01
+      - name: is_extreme_quantity
+        description: "Flag for quantities > 10,000 (EDA outlier)"
+      - name: is_extreme_price
+        description: "Flag for prices > £5,000 (EDA outlier)"
+
+  - name: stg_customers
+    description: >
+      Cleaned customer data with simulated subscription tier, monthly fee, and churn label.
+      Minimal transformation — primarily standardization from Bronze.
+    columns:
+      - name: CustomerID
+        description: "Unique customer identifier"
+        tests:
+          - not_null
+          - unique
+      - name: subscription_tier
+        description: "Simulated subscription tier"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Basic', 'Standard', 'Premium', 'Enterprise']
+      - name: monthly_fee
+        description: "Simulated monthly subscription fee"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: churn_label
+        description: "1 if inactive >90 days, 0 otherwise"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1]
+
+  # ───────────────────────────────────────────────
+  # GOLD MARTS
+  # ───────────────────────────────────────────────
+
+  - name: mart_customer_segments
+    description: >
+      RFM (Recency, Frequency, Monetary) segmentation mart.
+      Enables targeted marketing campaigns and feeds K-Means clustering.
+      Business segments: Champions, Loyal Customers, New Customers, Potential Loyalists,
+      At Risk, Cannot Lose Them, Lost.
+    columns:
+      - name: CustomerID
+        description: "Unique customer identifier"
+        tests:
+          - not_null
+          - unique
+      - name: recency_days
+        description: "Days since last purchase"
+        tests:
+          - not_null
+      - name: frequency
+        description: "Number of distinct transactions"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+      - name: monetary
+        description: "Total lifetime spend"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: r_score
+        description: "Recency score (1-5, 5 = most recent)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 5
+      - name: f_score
+        description: "Frequency score (1-5, 5 = most frequent)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 5
+      - name: m_score
+        description: "Monetary score (1-5, 5 = highest spend)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 5
+      - name: customer_segment
+        description: "Business-readable segment label"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['Champions', 'Loyal Customers', 'New Customers', 
+                       'Potential Loyalists', 'At Risk', 'Cannot Lose Them', 
+                       'Lost', 'Others']
+      - name: business_priority
+        description: "Segment priority for business action"
+        tests:
+          - not_null
+
+  - name: mart_clv_projections
+    description: >
+      CLV projection mart formatted for lifetimes library (BG/NBD + Gamma-Gamma models).
+      Excludes one-time buyers (frequency = 0) as probabilistic models require repeat purchase history.
+    columns:
+      - name: CustomerID
+        description: "Unique customer identifier"
+        tests:
+          - not_null
+          - unique
+      - name: frequency
+        description: "Number of repeat purchases (count - 1)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+      - name: recency
+        description: "Time between first and last purchase (days)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: T
+        description: "Time between first purchase and observation end (days)"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: monetary_value
+        description: "Average transaction value for repeat purchases"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+
+  - name: mart_churn_risk
+    description: >
+      ML-ready feature mart for churn prediction.
+      Combines transaction behavior, subscription simulation, and engagement signals.
+      Addresses EDA multicollinearity by using ratios instead of correlated raw counts.
+    columns:
+      - name: CustomerID
+        description: "Unique customer identifier"
+        tests:
+          - not_null
+          - unique
+      - name: churn_label
+        description: "Target variable: 1 = churned, 0 = active"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [0, 1]
+      - name: total_transactions
+        description: "Total number of transactions"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+      - name: total_spend
+        description: "Total lifetime spend"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: recency_days
+        description: "Days since last purchase"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+      - name: tier_encoded
+        description: "Numeric encoding of subscription tier"
+        tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 4
+      - name: engagement_score
+        description: "Composite engagement score (higher = more engaged)"
+        tests:
+          - not_null
