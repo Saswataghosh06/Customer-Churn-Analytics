@@ -5,6 +5,8 @@
 <h1 align="center">Customer Churn Analytics</h1>
 <h3 align="center">From 541,909 Raw Transactions to a Retention Strategy Worth £7.7M in Predicted Value</h3>
 
+<div align="center">
+
 <img alt="status" src="https://img.shields.io/badge/status-portfolio_project-1E3A5F?style=flat-square">
 <img alt="data" src="https://img.shields.io/badge/data-UCI%20Online%20Retail%20(UK)-8B98AE?style=flat-square">
 <img alt="stack" src="https://img.shields.io/badge/stack-Databricks%20%7C%20dbt--core%20%7C%20Python-1E3A5F?style=flat-square">
