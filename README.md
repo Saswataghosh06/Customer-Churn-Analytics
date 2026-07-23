@@ -2,15 +2,15 @@
 <img width="1584" height="396" alt="Image" src="https://github.com/user-attachments/assets/2e5917b7-addb-46fc-8897-35ffdf235fbd" />
 </div>
 
-<div align="center">
-# Customer Churn Analytics
-### From 541,909 Raw Transactions to a Retention Strategy Worth £7.7M in Predicted Value
+<h1 align="center">Customer Churn Analytics</h1>
+<h3 align="center">From 541,909 Raw Transactions to a Retention Strategy Worth £7.7M in Predicted Value</h3>
 
 <img alt="status" src="https://img.shields.io/badge/status-portfolio_project-1E3A5F?style=flat-square">
 <img alt="data" src="https://img.shields.io/badge/data-UCI%20Online%20Retail%20(UK)-8B98AE?style=flat-square">
 <img alt="stack" src="https://img.shields.io/badge/stack-Databricks%20%7C%20dbt--core%20%7C%20Python-1E3A5F?style=flat-square">
 <img alt="scale" src="https://img.shields.io/badge/customers-4%2C338%20%7C%20transactions-541K%20%7C%20predicted%20CLV-%C2%A37.7M-12A879?style=flat-square">
 
+<p align="center"><b>Saswata Ghosh</b><br>
 <a href="https://github.com/Saswataghosh06/Olist-Ecommerce-Intelligence">GitHub Repo</a> · <a href="https://www.linkedin.com/in/saswata-ghosh06/">LinkedIn</a> · <a href="saswataghosh2022@gmail.com">Email</a></p>
 
 </div>
