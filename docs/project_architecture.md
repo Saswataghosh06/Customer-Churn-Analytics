@@ -72,7 +72,7 @@ Power BI / Interactive Dashboard
 ### Gold (Business Marts)
 - **Tool:** dbt-core, materialized as `table`, schema-scoped via `generate_schema_name.sql` macro (uses `target.schema` when no custom schema is set, otherwise the model's declared schema — `silver`/`gold`).
 - **Models:**
-  - `mart_customer_segments.sql` — RFM scoring via `NTILE(5)` windows, rule-based segment labeling, whale flag at the 99th spend percentile.
+  - `mart_customer_segments.sql` — RFM scoring via `NTILE(5)` windows, rule-based segment labeling, whale flag at the 99th spend percentile. **Note:** the `NTILE` sort direction on `r_score`/`f_score`/`m_score` is currently inverted relative to its documented intent, which mislabels the rule-based `customer_segment`/`business_priority` columns — confirmed via cluster output, not just code review. Full detail and fix in `data_quality.md` §4.3. This does not affect the K-Means-derived business segments used elsewhere in this project.
   - `mart_clv_projections.sql` — formats recency/frequency/`T`/monetary_value for the `lifetimes` library convention; deliberately anchors `T` to the dataset's own max invoice date rather than `CURRENT_DATE()`.
   - `mart_churn_risk.sql` — joins transaction behavior with the synthetic subscription data; engineers ratio features (`spend_per_transaction`, `items_per_transaction`, `spend_per_product`, `purchase_regularity`) specifically to avoid the 0.92 `total_spend`/`total_items` correlation found in EDA; computes a composite `engagement_score`.
 
@@ -139,7 +139,7 @@ models:
 
 ```
 customer-churn-intelligence/
-├── dbt_transformation/customer_churn_dbt/
+├── dbt/customer_churn_dbt/
 │   ├── models/
 │   │   ├── silver/
 │   │   │   ├── stg_transactions.sql
@@ -177,10 +177,9 @@ customer-churn-intelligence/
 │       ├── 10_clv_analysis.png
 │       ├── 11_roc_pr_curves.png
 │       └── 12_churn_drivers.png
-├── dashboard/                                  # [in progress]
+├── dashboard/                                  
 │   ├── index.html
 │   └── screenshots/
 ├── README.md
 ```
 
-*(The `airflow_orchestration/` folder referenced in an earlier README draft has been removed from this structure — no Airflow DAG exists in the current build. If orchestration is added later, this document should be updated to match.)*

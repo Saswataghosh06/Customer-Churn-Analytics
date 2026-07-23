@@ -104,14 +104,14 @@ Feeds the K-Means clustering step in `01_rfm_kmeans_clustering.ipynb`.
 | `last_purchase_date` | TIMESTAMP | Most recent invoice timestamp | — |
 | `first_purchase_date` | TIMESTAMP | Earliest invoice timestamp | — |
 | `customer_lifespan_days` | INT | Days between first and last purchase | — |
-| `r_score` | INT (1–5) | Recency score via `NTILE(5)`, ascending recency (5 = most recent) | range 1–5 |
-| `f_score` | INT (1–5) | Frequency score via `NTILE(5)`, descending frequency (5 = most frequent) | range 1–5 |
-| `m_score` | INT (1–5) | Monetary score via `NTILE(5)`, descending spend (5 = highest spend) | range 1–5 |
-| `rfm_score` | INT (3–15) | `r_score + f_score + m_score` | — |
-| `rfm_segment_code` | STRING | Concatenated RFM digits, e.g. `"555"` | — |
-| `customer_segment` | STRING | Rule-based label: Champions, Loyal Customers, New Customers, Potential Loyalists, At Risk, Cannot Lose Them, Lost, Others | `accepted_values` (8 labels) |
+| `r_score` | INT (1–5) | Recency score via `NTILE(5) OVER (ORDER BY recency_days ASC)`. **Confirmed logic bug:** `NTILE` assigns bucket 1 to the smallest `recency_days` (most recent buyers) and bucket 5 to the largest (most dormant) — the opposite of the code comment ("Lower recency = higher score") and the intent documented in `schema.yml` ("5 = most recent"). Correcting this requires `ORDER BY recency_days DESC`. See `data_quality.md` §4.3 for confirmation via actual cluster output. | range 1–5 |
+| `f_score` | INT (1–5) | Frequency score via `NTILE(5) OVER (ORDER BY frequency DESC)`. **Same bug, inverted direction:** bucket 1 goes to the *highest*-frequency customers, not the lowest, contradicting "5 = most frequent." Correcting this requires `ORDER BY frequency ASC`. | range 1–5 |
+| `m_score` | INT (1–5) | Monetary score via `NTILE(5) OVER (ORDER BY monetary DESC)`. **Same bug:** bucket 1 goes to the *highest* spenders, contradicting "5 = highest spend." Correcting this requires `ORDER BY monetary ASC`. | range 1–5 |
+| `rfm_score` | INT (3–15) | `r_score + f_score + m_score`. Inherits the inversion above — a low `rfm_score` currently indicates a *better* customer, not a worse one, under the current SQL. | — |
+| `rfm_segment_code` | STRING | Concatenated RFM digits, e.g. `"555"`. Inherits the same inversion. | — |
+| `customer_segment` | STRING | Rule-based label: Champions, Loyal Customers, New Customers, Potential Loyalists, At Risk, Cannot Lose Them, Lost, Others. **Confirmed mislabeled in the current build** as a direct consequence of the scoring inversion above — verified against `01_rfm_kmeans_clustering.ipynb` output, where the cluster with the highest recency_days (5,595 days), lowest frequency (1.38), and lowest monetary value (£388.43) of any cluster is mode-labeled `"Champions"` by this column. `dbt`'s `accepted_values` test only validates the label spelling, not correctness of assignment, so this passes all current tests. **This column is not the source of the business segments reported elsewhere in this project** — those come from K-Means clustering on the raw `recency_days`/`frequency`/`monetary` values in the notebooks, which is unaffected by this bug. | `accepted_values` (8 labels) |
 | `is_whale` | BOOLEAN | `TRUE` if `monetary` ≥ 99th percentile of all customers | — |
-| `business_priority` | STRING | P1–P5 action priority mapped from `customer_segment` | `not_null` |
+| `business_priority` | STRING | P1–P5 action priority mapped from `customer_segment` — **inherits the same mislabeling**, since it is derived directly from the inverted `customer_segment` field. | `not_null` |
 
 ### 3.2 `gold.mart_clv_projections` — CLV Modeling Inputs
 Formatted for the `lifetimes` library (BG/NBD + Gamma-Gamma convention). Excludes one-time buyers (`frequency = 0`).
@@ -203,7 +203,7 @@ Adds churn model outputs to `mart_churn_risk`.
 | Rule | Where Applied | Exact Logic |
 |---|---|---|
 | Churn definition | `bronze.customers_simulated` → all downstream marts | `recency_days > 90` ⇒ `churn_label = 1` |
-| RFM segment assignment | `mart_customer_segments` | Rule-based on `r_score`/`f_score`/`m_score` thresholds (see model SQL) |
+| RFM segment assignment | `mart_customer_segments` | Rule-based on `r_score`/`f_score`/`m_score` thresholds (see model SQL) — **but the underlying scores are computed with an inverted `NTILE` sort direction; see §4 above and `data_quality.md` §4.3** |
 | Whale flag (segments mart) | `mart_customer_segments` | `monetary` ≥ 99th percentile of all customers |
 | Whale flag (churn mart) | `mart_churn_risk` | `total_spend` ≥ £50,000 (fixed threshold, not percentile-based — note this differs in method from the segments mart's whale flag) |
 | CLV modeling eligibility | `mart_clv_projections` | Excludes customers with `frequency = 0` (one-time buyers) — 4,338 → 4,267 customers modeled (71 excluded) |

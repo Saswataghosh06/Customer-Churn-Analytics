@@ -151,6 +151,34 @@ This document tracks data quality across the entire pipeline: from raw ingestion
 ### 4.2 Synthetic subscription fields
 - `subscription_tier` and `monthly_fee` in `bronze.customers_simulated` are synthetic additions layered on top of the real UCI transaction data, since the source dataset has no subscription model. `churn_label`'s generation rule is explicitly documented (`recency_days > 90`); the precise assignment logic for `subscription_tier`/`monthly_fee` was not preserved in the artifacts available for this documentation pass and is not stated here as fact — see `data_dictionary.md` §1.2.
 
+### 4.3 RFM score direction is inverted in `mart_customer_segments` (confirmed via cluster output)
+
+**The bug, in the SQL:**
+```sql
+NTILE(5) OVER (ORDER BY recency_days ASC) AS r_score,      -- Lower recency = higher score
+NTILE(5) OVER (ORDER BY frequency DESC) AS f_score,        -- Higher frequency = higher score
+NTILE(5) OVER (ORDER BY monetary DESC) AS m_score,         -- Higher monetary = higher score
+```
+
+`NTILE(n)` assigns bucket 1 to the first rows in the stated sort order and bucket `n` to the last. Under `ORDER BY recency_days ASC`, bucket 1 goes to the *smallest* recency_days (most recent buyers) — not bucket 5, as the comment and `schema.yml` ("5 = most recent") both intend. The same inversion applies to `f_score` and `m_score` under their `DESC` clauses (bucket 1 goes to the *highest* frequency/spend, not bucket 5).
+
+**Confirmed with real data, not just static code review.** In `01_rfm_kmeans_clustering.ipynb`, the `customer_segment` column produced by this mart is used as a diagnostic "mode label" per K-Means cluster. Cluster 1 is mode-labeled **`"Champions"`** by that column, yet its own stats are:
+
+| Metric | Cluster 1 value | What "Champions" should look like |
+|---|---|---|
+| Avg recency_days | 5,595 (highest of any cluster — most dormant) | Lowest |
+| Avg frequency | 1.38 (lowest of any cluster) | Highest |
+| Avg monetary | £388.43 (lowest of any cluster) | Highest |
+
+This is the empirical fingerprint of the inversion: the objectively worst-behaving cluster in the dataset is labeled "Champions" by the rule-based logic.
+
+**Scope of impact:**
+- **Does not affect** the business segments reported in the README/executive summary (Lost/Dormant, Average, At Risk) — those come from K-Means clustering directly on raw `recency_days`/`frequency`/`monetary`, not from this scored/labeled column.
+- **Does affect** `r_score`, `f_score`, `m_score`, `rfm_score`, `rfm_segment_code`, `customer_segment`, and `business_priority` in `gold.mart_customer_segments` as currently built — all inherit the inversion, meaning the mart currently mislabels its best and worst customers in reverse.
+- **Not caught by dbt tests.** The `accepted_values` test on `customer_segment` only validates that the label is one of the 8 allowed strings — it has no way to check whether the *assignment* is directionally correct, so all 57 tests pass despite the bug.
+
+**Fix:** flip the sort direction in each `NTILE` call — `recency_days DESC`, `frequency ASC`, `monetary ASC` — so that bucket 5 consistently represents "best" across all three dimensions, matching the documented intent.
+
 ---
 
 ## Data Quality Maturity Scorecard
@@ -165,6 +193,7 @@ This document tracks data quality across the entire pipeline: from raw ingestion
 | Target leakage | N/A | N/A | Caught & fixed | Production-ready |
 | Model convergence | N/A | N/A | Monitored & documented (BG/NBD failure) | Production-ready |
 | Cross-mart consistency | N/A | N/A | Identified (§4.1) | Known gap, documented |
+| RFM score directionality | N/A | Not caught — `accepted_values` only checks label spelling | Caught via cluster output review (§4.3) | Known bug, documented |
 | Documentation | Markdown | dbt schema.yml | Notebook comments + this report | Production-ready |
 
 ---
@@ -172,8 +201,9 @@ This document tracks data quality across the entire pipeline: from raw ingestion
 ## Recommendations for Production
 
 1. Standardize the recency reference date across all Gold marts (fix §4.1).
-2. Preserve and document the exact generation rule for any future synthetic/simulated fields at creation time, not after the fact.
-3. Add dbt source freshness tests on `bronze.online_retail` to detect stale ingestion.
-4. Introduce an orchestration layer (this project currently runs dbt-core manually against Databricks — no scheduler is in place yet) to automate the Bronze → Silver → Gold → notebook-scoring sequence.
-5. Add anomaly detection for sudden spikes in cancellations or returns.
-6. Monitor churn model drift and retrain on a fixed cadence (e.g., monthly) once in a live setting.
+2. **Fix the `NTILE` sort direction on `r_score`/`f_score`/`m_score` in `mart_customer_segments.sql`** so scores actually match their documented "5 = best" convention (fix §4.3) — this is the highest-priority fix among all findings in this report, since it currently produces a mislabeled business-facing field.
+3. Preserve and document the exact generation rule for any future synthetic/simulated fields at creation time, not after the fact.
+4. Add dbt source freshness tests on `bronze.online_retail` to detect stale ingestion.
+5. Introduce an orchestration layer (this project currently runs dbt-core manually against Databricks — no scheduler is in place yet) to automate the Bronze → Silver → Gold → notebook-scoring sequence.
+6. Add anomaly detection for sudden spikes in cancellations or returns.
+7. Monitor churn model drift and retrain on a fixed cadence (e.g., monthly) once in a live setting.
