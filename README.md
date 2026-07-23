@@ -8,7 +8,7 @@
 <img alt="stack" src="https://img.shields.io/badge/stack-Databricks%20%7C%20dbt--core%20%7C%20Python-1E3A5F?style=flat-square">
 <img alt="scale" src="https://img.shields.io/badge/customers-4%2C338%20%7C%20transactions-541K%20%7C%20predicted%20CLV-%C2%A37.7M-12A879?style=flat-square">
 
-[GitHub Repo] · [LinkedIn] · [Email]
+<a href="https://github.com/Saswataghosh06/Olist-Ecommerce-Intelligence">GitHub Repo</a> · <a href="https://www.linkedin.com/in/saswata-ghosh06/">LinkedIn</a> · <a href="saswataghosh2022@gmail.com">Email</a></p>
 
 </div>
 
