@@ -71,7 +71,7 @@ This project builds an end-to-end pipeline — from raw transaction data to a sc
 **Headline finding:** 53.7% of the customer base is dormant, while a 12.9% "At Risk" segment — customers who were previously frequent, high-spending buyers — accounts for 62.8% of total customer revenue. That concentration is the core retention risk in this business: losing the wrong dozen customers matters more than losing the wrong thousand.
 
 <p align="center">
-<img width="807" height="812" alt="Image" src="https://github.com/user-attachments/assets/d7bbe943-17d2-4c8c-b1e1-5a22208e6608" />
+<img width="70%" alt="Image" src="https://github.com/user-attachments/assets/d7bbe943-17d2-4c8c-b1e1-5a22208e6608" />
   <br><sub><em>3D RFM segmentation — the "At Risk" cluster (orange) sits at high frequency/monetary value with rising recency, the classic "was loyal, now fading" pattern.</em></sub>
 </p>
 
@@ -91,13 +91,13 @@ Before any model was built, the raw dataset was audited for the issues that woul
 | Extreme quantity/price outliers | 34 total | <0.01% | Flagged (not removed) in Gold |
 
 <p align="center">
-<img width="989" height="490" alt="Image" src="https://github.com/user-attachments/assets/ca6bed65-c951-47f8-99b2-17f0ac8434b4" />
+<img width="50%" alt="Image" src="https://github.com/user-attachments/assets/ca6bed65-c951-47f8-99b2-17f0ac8434b4" />
 </p>
 
 All 57 automated dbt tests pass on the current build (an initial run caught 4 rows with micro-value `UnitPrice`, which tightened the Silver-layer filter — the full before/after is in the linked report below).
 
 <p align="center">
-<img width="1390" height="490" alt="Image" src="https://github.com/user-attachments/assets/d8081e07-854b-446f-961c-56dc5db4533e" />
+<img width="50%" alt="Image" src="https://github.com/user-attachments/assets/d8081e07-854b-446f-961c-56dc5db4533e" />
 </p>
 
 📄 **Full detail:** [`docs/data_audit.md`](docs/data_audit.md) (raw EDA — nulls, duplicates, outliers, geographic/temporal bias) · [`docs/data_quality.md`](docs/data_quality.md) (dbt test results, model validation, known technical caveats) · [`docs/data_dictionary.md`](docs/data_dictionary.md) (full column-level reference across Bronze/Silver/Gold)
@@ -117,7 +117,7 @@ K-Means clustering (K=4, silhouette score 0.380 — selected over the marginally
 | **At Risk** | 559 | 12.9% | £9,978 | ~16.0 | **62.8%** |
 
 <p align="center">
-<img width="1590" height="1189" alt="Image" src="https://github.com/user-attachments/assets/ff2596bf-197d-4cd0-8808-70d6f012dc98" />
+<img width="50%" alt="Image" src="https://github.com/user-attachments/assets/ff2596bf-197d-4cd0-8808-70d6f012dc98" />
 </p>
 
 The "At Risk" segment is the priority: only 12.9% of customers, but nearly two-thirds of revenue. These are customers who *used to* buy frequently and in large volume, but recency is starting to slip.
@@ -127,7 +127,7 @@ The "At Risk" segment is the priority: only 12.9% of customers, but nearly two-t
 A BG/NBD + Gamma-Gamma probabilistic model was attempted first — the standard approach for this kind of data. It failed to converge, because this dataset's purchase frequencies (up to 7,675 repeat purchases for one customer) and time spans sit outside what that model handles reliably. Rather than force a bad fit, the project falls back to a transparent heuristic: **AOV × (Frequency/Month) × 12**.
 
 <p align="center">
-<img width="1590" height="1189" alt="Image" src="https://github.com/user-attachments/assets/a905cee3-67bb-4d3b-a1c6-ef4715898600" />
+<img width="50%" alt="Image" src="https://github.com/user-attachments/assets/a905cee3-67bb-4d3b-a1c6-ef4715898600" />
 </p>
 
 | CLV Tier | Customers | Combined CLV | Avg CLV |
@@ -152,11 +152,11 @@ After removing `recency_days` and `customer_lifespan_days` and rebuilding:
 | Random Forest (benchmark) | 0.781 | 0.783 (± 0.036) | Best model, used for scoring |
 
 <p align="center">
-<img width="1389" height="590" alt="Image" src="https://github.com/user-attachments/assets/6a5abe54-3d8f-4e85-95ee-ccba97c2fd28" />
+<img width="50%" alt="Image" src="https://github.com/user-attachments/assets/6a5abe54-3d8f-4e85-95ee-ccba97c2fd28" />
 </p>
 
 <p align="center">
-<img width="1590" height="790" alt="Image" src="https://github.com/user-attachments/assets/89129b06-aeb9-4c6a-b1d8-22d59a65a45d" /></p>
+<img width="50%" alt="Image" src="https://github.com/user-attachments/assets/89129b06-aeb9-4c6a-b1d8-22d59a65a45d" /></p>
 
 **Top churn drivers, by model:**
 
