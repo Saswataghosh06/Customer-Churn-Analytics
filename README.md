@@ -2,6 +2,7 @@
 <img width="1584" height="396" alt="Image" src="https://github.com/user-attachments/assets/2e5917b7-addb-46fc-8897-35ffdf235fbd" />
 </div>
 
+<div align="center">
 # Customer Churn Analytics
 ### From 541,909 Raw Transactions to a Retention Strategy Worth £7.7M in Predicted Value
 
