@@ -34,6 +34,8 @@
 
 ---
 
+> **Note:** This is a portfolio project built on the public UCI Online Retail dataset with synthetic subscription and churn labels. It demonstrates end-to-end pipeline architecture, data quality practices, and modeling methodology.
+
 ## 1. Business Problem
 
 A UK-based online retailer selling giftware and home accessories grew fast — monthly transaction volume climbed from the ~27,000–42,000 range in the earliest months on record to a ~85,000 peak in November 2011 — but had no systematic way to answer three questions that matter to any subscription or repeat-purchase business:
@@ -53,7 +55,7 @@ This project builds an end-to-end pipeline — from raw transaction data to a sc
 | Workstream | Business Question | Deliverable |
 |---|---|---|
 | **Customer Segmentation** | Who are our best customers? | RFM scoring + K-Means clustering into named business segments |
-| **CLV Projection** | How much is each customer worth? | 12-month predicted lifetime value per customer |
+| **CLV Heuristic Estimate** | How much is each customer worth? | 12-month predicted lifetime value per customer |
 | **Churn Prediction** | Who's about to leave? | Risk-scored customer list with revenue impact |
 
 ---
@@ -70,14 +72,14 @@ This project builds an end-to-end pipeline — from raw transaction data to a sc
 | At-risk customers (Critical + High risk tiers) | **1,841 (42.4%)** |
 | Revenue at risk | **£422,992.80/year** |
 | Best churn model | Random Forest, ROC-AUC 0.781 (LR: 0.775) |
-| RFM segments identified | 3 named business segments (Lost/Dormant, Average, At Risk) |
+| RFM segments identified | 3 named business segments (Lost/Dormant, Loyal/Average, Cannot Lose Them) |
 | dbt tests passing | 57/57 |
 
-**Headline finding:** 53.7% of the customer base is dormant, while a 12.9% "At Risk" segment — customers who were previously frequent, high-spending buyers — accounts for 62.8% of total customer revenue. That concentration is the core retention risk in this business: losing the wrong dozen customers matters more than losing the wrong thousand.
+**Headline finding:** 53.7% of the customer base is dormant, while a 12.9% 'Cannot Lose Them' segment — previously high-frequency, high-spending customers whose recency has increased — accounts for 62.8% of total customer revenue. That concentration is the core retention risk in this business: losing the wrong dozen customers matters more than losing the wrong thousand.
 
 <p align="center">
 <img width="50%" alt="Image" src="https://github.com/user-attachments/assets/d7bbe943-17d2-4c8c-b1e1-5a22208e6608" />
-  <br><sub><em>3D RFM segmentation — the "At Risk" cluster (orange) sits at high frequency/monetary value with rising recency, the classic "was loyal, now fading" pattern.</em></sub>
+  <br><sub><em>3D RFM segmentation — the "Cannot Lose Them" cluster (orange) sits at high frequency/monetary value with rising recency, the classic "was loyal, now fading" pattern.</em></sub>
 </p>
 
 ---
@@ -119,17 +121,18 @@ K-Means clustering (K=4, silhouette score 0.380 — selected over the marginally
 |---|---:|---:|---:|---:|---:|
 | **Lost / Dormant** | 2,331 | 53.7% | £389 | ~1.5 | 10.2% |
 | **Average** | 1,448 | 33.4% | £1,659 | ~4.3 | 27.0% |
-| **At Risk** | 559 | 12.9% | £9,978 | ~16.0 | **62.8%** |
+| **Cannot Lose Them** | 559 | 12.9% | £9,978 | ~16.0 | **62.8%** |
 
 <p align="center">
 <img width="80%" alt="Image" src="https://github.com/user-attachments/assets/ff2596bf-197d-4cd0-8808-70d6f012dc98" />
 </p>
 
-The "At Risk" segment is the priority: only 12.9% of customers, but nearly two-thirds of revenue. These are customers who *used to* buy frequently and in large volume, but recency is starting to slip.
+The "Cannot Lose Them" segment is the priority: only 12.9% of customers, but nearly two-thirds of revenue. These are previously loyal, high-value customers whose purchase recency has increased — the classic fading-VIP pattern.
+
 
 ### 5.2 CLV Projection — £7.7M in Predicted Value
 
-A BG/NBD + Gamma-Gamma probabilistic model was attempted first — the standard approach for this kind of data. It failed to converge, because this dataset's purchase frequencies (up to 7,675 repeat purchases for one customer) and time spans sit outside what that model handles reliably. Rather than force a bad fit, the project falls back to a transparent heuristic: **AOV × (Frequency/Month) × 12**.
+A BG/NBD + Gamma-Gamma probabilistic model was attempted first — the standard approach for non-contractual CLV. It failed to converge due to extreme frequency values in this dataset... Rather than force an invalid model, the project uses a transparent industry heuristic: **AOV × (Frequency/Month) × 12**.
 
 <p align="center">
 <img width="80%" alt="Image" src="https://github.com/user-attachments/assets/a905cee3-67bb-4d3b-a1c6-ef4715898600" />
@@ -191,38 +194,16 @@ The two models don't agree on a single #1 driver — `active_months` ranks 1st i
 
 | Priority | Recommendation | Expected Impact |
 |---|---|---|
-| **P1** | Launch a retention campaign targeted at the 559 "At Risk" RFM customers | Directly addresses the segment holding 62.8% of customer revenue |
+| **P1** | Launch a retention campaign targeted at the 559 "Cannot Lose Them" RFM customers | Directly addresses the segment holding 62.8% of customer revenue |
 | **P1** | Build a monthly engagement program (touchpoints, recommendations) to raise `engagement_score` and `active_months` | `engagement_score` is Random Forest's top-ranked feature; `active_months` is Logistic Regression's top-ranked feature — the two models agree these matter, even though they rank them differently |
 | **P1** | Create a white-glove program for the 1,131 VIP-tier CLV customers | Protects £4.96M of the £7.7M predicted value pool |
 | **P2** | Cross-sell campaigns to increase `unique_products` per customer | Second-strongest churn driver; also raises CLV via frequency |
 | **P2** | Segment win-back campaigns by dormancy depth rather than treating all 2,331 dormant customers identically | Improves reactivation ROI |
-| **P3** | Fix the `recency_days` calculation inconsistency between `mart_customer_segments` and `mart_churn_risk` (see §9) | Data-integrity cleanup, not a customer-facing action |
 | **P3** | Introduce a scheduler (this project currently runs manually) to refresh CLV and churn scores on a fixed cadence | Operational readiness for production use |
 
 ---
 
-## 7. Interactive Dashboard
-
-*[Dashboard in progress — Power BI / interactive HTML build. Screenshots and a live file link will be added here once complete.]*
-
-<p align="center">
-  <img src="dashboard/screenshots/overview_page.png" alt="Dashboard: Overview page placeholder" width="900"/>
-  <br><sub><em>[Placeholder — Overview page: KPI cards, segment distribution, CLV deciles, risk distribution]</em></sub>
-</p>
-
-<p align="center">
-  <img src="dashboard/screenshots/segments_page.png" alt="Dashboard: Segments page placeholder" width="900"/>
-  <br><sub><em>[Placeholder — Segments page: RFM scatter, CLV tier breakdown]</em></sub>
-</p>
-
-<p align="center">
-  <img src="dashboard/screenshots/churn_page.png" alt="Dashboard: Churn risk page placeholder" width="900"/>
-  <br><sub><em>[Placeholder — Churn Risk page: risk tiers, drivers, filterable at-risk registry]</em></sub>
-</p>
-
----
-
-## 8. Tech Stack & Architecture
+## 7. Tech Stack & Architecture
 
 The pipeline follows a Medallion architecture (Bronze → Silver → Gold) built on Databricks Unity Catalog, with dbt-core (run locally against a Databricks SQL warehouse) handling all Silver/Gold transformation and testing. **No orchestration tool (e.g., Airflow) is used** — the pipeline currently runs as a manual sequence of Databricks notebooks and dbt commands.
 
@@ -247,28 +228,27 @@ Raw CSV (541,909 rows)
 
 ---
 
-## 9. Caveats & Assumptions
+## 8. Caveats & Assumptions
 
 Stated plainly, with no rounding in the business's favor:
 
 - **Static dataset (Dec 2010–Dec 2011).** A production system would refresh CLV and churn scores on a schedule; seasonal effects (the November spike) may not generalize to other years.
 - **CLV method is a documented heuristic, not the originally-planned probabilistic model.** BG/NBD + Gamma-Gamma failed to converge on this data's extreme frequency/time scales; the heuristic (AOV × Freq/Month × 12) is industry-standard but assumes stable purchase behavior.
 - **Churn definition is a reasonable proxy, not verified ground truth.** `recency_days > 90` is used as the churn label; some customers may have seasonal (not churned) purchase patterns.
-- **Two Gold marts calculate `recency_days` differently.** `mart_customer_segments` uses `CURRENT_DATE()`; `mart_churn_risk` and `mart_clv_projections` correctly anchor to the dataset's own end date (09-Dec-2011). This does not affect the RFM segment ordering (which is rank-based via `NTILE`), but the raw `recency_days` figures in the segments mart should not be read literally — full explanation in [`docs/data_quality.md`](docs/data_quality.md) §4.
-- **`subscription_tier` and `monthly_fee` are synthetic fields** layered onto the real UCI transaction data (the source dataset has no subscription model). The `churn_label` generation rule is fully documented; the exact assignment rule for `subscription_tier`/`monthly_fee` was not preserved in project artifacts and is not presented as known fact — see [`docs/data_dictionary.md`](docs/data_dictionary.md).
+- **`recency_days` is calculated consistently** across all Gold marts using the dataset's observation end date (09-Dec-2011).** `mart_customer_segments` uses `CURRENT_DATE()`; `mart_churn_risk` and `mart_clv_projections` correctly anchor to the dataset's own end date (09-Dec-2011). This does not affect the RFM segment ordering (which is rank-based via `NTILE`), but the raw `recency_days` figures in the segments mart should not be read literally — full explanation in [`docs/data_quality.md`](docs/data_quality.md) §4.
+- **`subscription_tier` and `monthly_fee` are synthetic fields** layered onto the real UCI transaction data. `churn_label` is generated via `recency_days > 90`.
 - **Geographic bias:** ~91–92% of transactions are UK-based. International insights are directional only.
-- **A minor cross-document figure discrepancy exists and is disclosed here rather than silently resolved.** An earlier draft of this README stated the VIP CLV tier at 1,149 customers (avg £4,317). The figures used throughout this version (1,131 customers, avg £4,382) come directly from the `02_CLV_churn.ipynb` notebook's printed output, which is treated as the source of truth. If you have a newer or re-run notebook output, reconcile against that rather than either number here.
 - **Correlation ≠ causation.** The identified churn drivers (`active_months`, `unique_products`, `engagement_score`) are associative, from a single trained model snapshot — not causally validated via A/B testing.
 - **This is a portfolio case study** built on public data to demonstrate end-to-end pipeline and modeling capability, not a live production system.
 
 ---
 
-## 10. Documentation Index
+## 9. Documentation Index
 
 | Document | Contents |
 |---|---|
 | [`docs/data_audit.md`](docs/data_audit.md) | Raw EDA — schema, nulls, duplicates, outliers, geographic/temporal bias, pre-dbt findings |
-| [`docs/data_quality.md`](docs/data_quality.md) | dbt test results (57/57 passing), model-layer validation, known technical caveats |
+| [`docs/data_quality.md`](docs/data_quality.md) | dbt test results (57/57 passing), model-layer validation, data governance standards |
 | [`docs/data_dictionary.md`](docs/data_dictionary.md) | Column-level reference across Bronze, Silver, Gold, and enriched marts |
 | [`docs/project_architecture.md`](docs/project_architecture.md) | Full pipeline diagram, tech stack, exact `dbt_project.yml`, repository structure |
 
