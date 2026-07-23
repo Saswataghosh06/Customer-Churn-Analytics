@@ -1,179 +1,186 @@
 # Project Architecture
 
-## Overview
+## Customer Churn Intelligence Platform
 
-This project implements an end-to-end Medallion Architecture (Bronze -> Silver -> Gold) on Databricks Community Edition with Unity Catalog, connected to a local dbt project for data transformation and Python notebooks for advanced analytics.
-
----
-
-## System Architecture
-
-```
-DATA SOURCES
-  UCI Online Retail CSV
-  - ISO-8859-1 encoded, dd-MM-yyyy HH:mm date format
-  - 541,909 rows, 8 columns
-  - Stored in: /Volumes/customer_churn_project/bronze/raw_files/
-
-BRONZE LAYER (Raw)
-  Databricks Notebook: PySpark Ingestion
-  - bronze.online_retail          <- spark.read.format("csv")
-  - bronze.customers_simulated    <- Subscription simulation (PySpark)
-
-  Simulation Logic:
-  - monthly_fee: Derived from spend percentile tiers
-  - churn_label: 1 if recency > 90 days, else 0
-  - tiers: Basic / Standard / Premium / Enterprise
-
-dbt (Local -> Databricks)
-  customer_churn_dbt
-  - profile: databricks
-  - catalog: customer_churn_project
-
-SILVER LAYER (Cleaned)
-  silver.stg_transactions
-  - EDA-informed filters applied:
-    * CustomerID IS NOT NULL          (removed 135,080 rows / 24.9%)
-    * InvoiceNo NOT LIKE 'C%'         (removed 9,288 cancellations)
-    * Quantity > 0                     (removed 10,624 returns)
-    * UnitPrice >= 0.01               (removed 2,517 free items + 4 micro)
-    * DISTINCT                        (removed 5,268 duplicates)
-    * try_to_timestamp parsing         (dd-MM-yyyy HH:mm format)
-  - Engineered: line_total = Quantity * UnitPrice
-  - Flags: is_extreme_quantity, is_extreme_price, is_uk_customer
-
-  silver.stg_customers
-  - Standardized from bronze.customers_simulated
-  - Minimal transformation, type casting
-
-GOLD LAYER (Business Marts)
-  gold.mart_customer_segments
-  - RFM Scoring (Recency, Frequency, Monetary)
-  - NTILE(5) quintiles for R, F, M
-  - Business segments: Champions, Loyal, New, Potential, At Risk, Cannot Lose Them, Lost, Others
-  - Business priority tiers: P1-P5
-  - is_whale flag (top 1% spenders)
-
-  gold.mart_clv_projections
-  - lifetimes library format (BG/NBD + Gamma-Gamma inputs)
-  - frequency = repeat purchases (count - 1)
-  - recency = days between first and last purchase
-  - T = days between first purchase and observation end
-  - monetary_value = avg of repeat purchases only
-
-  gold.mart_churn_risk
-  - 16 ML-ready features
-  - Engineered ratios to avoid multicollinearity
-  - Engagement score composite
-  - Risk flags: is_inactive_60d, is_inactive_90d, is_whale
-  - Tier encoding for ML models
-
-  Enriched Tables (Post-Modeling):
-  - gold.mart_customer_segments_enriched  <- + K-Means clusters
-  - gold.mart_clv_projections_enriched    <- + CLV predictions
-  - gold.mart_churn_risk_scored           <- + churn risk scores
-
-DATA SCIENCE (Databricks Notebooks)
-  Notebook 1: RFM K-Means Clustering
-  - Input: gold.mart_customer_segments
-  - Log-transform + StandardScaler
-  - K-Means (K=4, silhouette 0.380)
-  - Segments: Lost/Dormant (53.7%), Average (33.4%), At Risk (12.9%)
-  - Output: gold.mart_customer_segments_enriched
-
-  Notebook 2: CLV Projection
-  - Input: gold.mart_clv_projections
-  - Method: Robust heuristic (AOV x Freq/Month x 12)
-  - BG/NBD attempted but failed convergence (extreme time scales)
-  - Total 12-month CLV: GBP 7.7M | Avg: GBP 1,805
-  - Top 10% = 42.9% of total CLV
-
-  Notebook 3: Churn Prediction
-  - Input: gold.mart_churn_risk
-  - Logistic Regression (Primary): ROC-AUC 0.775
-  - Random Forest (Benchmark): ROC-AUC 0.781
-  - Target leakage caught & fixed (removed recency_days)
-  - 1,841 at-risk customers identified
-  - Revenue at risk: GBP 423K/year
-
-BI & VISUALIZATION
-  Power BI / Tableau (planned)
-  - Direct connection to gold.* tables via Databricks connector
-
-  Local Charts (outputs/charts/)
-  - null_percentage, distributions, monthly volume, countries
-  - correlation_matrix, rfm clusters, clv analysis, churn comparison
-```
+This document describes the actual pipeline as built — no orchestration tools, services, or steps are listed here beyond what is implemented in the current codebase.
 
 ---
 
-## Tech Stack
+## 1. High-Level Architecture
+
+```
+UCI Online Retail CSV (541,909 rows)
+        │
+        ▼
+Databricks Notebook — Data Ingestion
+        │  (reads CSV, writes to Unity Catalog Volume, loads Bronze Delta table)
+        ▼
+Unity Catalog: customer_churn_project.bronze
+   ├── bronze.online_retail            (raw transactions)
+   └── bronze.customers_simulated      (customer aggregates + synthetic subscription fields)
+        │
+        ▼
+Databricks Notebook — Raw EDA
+   (customer_churn_EDA.ipynb — profiles nulls, duplicates, outliers,
+    temporal/geographic bias; findings feed the Silver filter logic below)
+        │
+        ▼
+dbt-core (run locally, connected to the Databricks SQL warehouse)
+   ├── models/silver/
+   │     ├── stg_transactions.sql   → customer_churn_project.silver.stg_transactions
+   │     └── stg_customers.sql      → customer_churn_project.silver.stg_customers
+   └── models/gold/
+         ├── mart_customer_segments.sql   → customer_churn_project.gold.mart_customer_segments
+         ├── mart_clv_projections.sql     → customer_churn_project.gold.mart_clv_projections
+         └── mart_churn_risk.sql          → customer_churn_project.gold.mart_churn_risk
+        │
+        ▼
+Databricks Notebooks — Business EDA / Modeling
+   ├── 01_rfm_kmeans_clustering.ipynb  → gold.mart_customer_segments_enriched, gold.cluster_mapping
+   ├── 02_CLV_churn.ipynb              → gold.mart_clv_projections_enriched
+   └── 03_Churn_Prediction.ipynb       → gold.mart_churn_risk_scored
+        │
+        ▼
+Power BI / Interactive Dashboard
+   (built directly on the enriched Gold marts)
+```
+
+**No orchestration tool (e.g., Airflow, dbt Cloud) is used in this project.** The pipeline is run as a manual sequence: Databricks notebook ingestion → Databricks notebook raw EDA → dbt-core (local) Silver/Gold builds → Databricks notebooks for modeling → BI layer. This is stated explicitly here so the architecture diagram matches what was actually built, not a target-state design.
+
+---
+
+## 2. Medallion Layer Detail
+
+### Bronze (Raw)
+- **Storage:** Unity Catalog Volume holds the landed CSV; a Databricks notebook loads it into a Bronze Delta table.
+- **Tables:** `bronze.online_retail` (541,909 rows, 8 columns), `bronze.customers_simulated` (customer-level aggregate + synthetic subscription fields).
+- **Transformation:** None — this is the raw landed data, used as the dbt `source()` layer (see `sources.yml`).
+
+### Silver (Cleaned)
+- **Tool:** dbt-core, materialized as `table` (Delta format, per `dbt_project.yml`).
+- **Models:** `stg_transactions.sql`, `stg_customers.sql`.
+- **Logic applied (informed directly by the raw EDA notebook):**
+  1. Exclude rows with `CustomerID IS NULL` (135,080 rows / 24.93%)
+  2. Exclude cancelled orders, `InvoiceNo LIKE 'C%'` (9,288 rows / 1.71%)
+  3. Exclude `Quantity ≤ 0` (10,624 rows / 1.96%)
+  4. Exclude `UnitPrice < 0.01` (2,517+4 rows — tightened after a dbt test failure caught 4 micro-value rows the manual EDA missed)
+  5. Deduplicate exact duplicate rows via `SELECT DISTINCT` (5,268 rows / 0.97%)
+  6. Parse `InvoiceDate` from `dd-MM-yyyy HH:mm` using `try_to_timestamp`
+  7. Engineer `line_total = ROUND(Quantity × UnitPrice, 2)`
+  8. Flag `is_extreme_quantity` (>10,000), `is_extreme_price` (>£5,000), `is_uk_customer`
+
+### Gold (Business Marts)
+- **Tool:** dbt-core, materialized as `table`, schema-scoped via `generate_schema_name.sql` macro (uses `target.schema` when no custom schema is set, otherwise the model's declared schema — `silver`/`gold`).
+- **Models:**
+  - `mart_customer_segments.sql` — RFM scoring via `NTILE(5)` windows, rule-based segment labeling, whale flag at the 99th spend percentile.
+  - `mart_clv_projections.sql` — formats recency/frequency/`T`/monetary_value for the `lifetimes` library convention; deliberately anchors `T` to the dataset's own max invoice date rather than `CURRENT_DATE()`.
+  - `mart_churn_risk.sql` — joins transaction behavior with the synthetic subscription data; engineers ratio features (`spend_per_transaction`, `items_per_transaction`, `spend_per_product`, `purchase_regularity`) specifically to avoid the 0.92 `total_spend`/`total_items` correlation found in EDA; computes a composite `engagement_score`.
+
+### Modeling Layer (Databricks Notebooks)
+- `01_rfm_kmeans_clustering.ipynb` — StandardScaler + log transform → K-Means (K=2–10 tested, K=4 selected) → cluster naming → writes `mart_customer_segments_enriched` and `cluster_mapping`.
+- `02_CLV_churn.ipynb` — validates `lifetimes` preconditions → attempts BG/NBD + Gamma-Gamma (fails to converge) → falls back to heuristic CLV → writes `mart_clv_projections_enriched`.
+- `03_Churn_Prediction.ipynb` — feature engineering with leakage check → Logistic Regression (primary) + Random Forest (benchmark) → 5-fold CV → risk scoring → writes `mart_churn_risk_scored`.
+
+### BI / Presentation Layer
+- Power BI (or an interactive HTML dashboard) reads directly from the three enriched Gold marts. *[Dashboard build in progress — screenshots and interactive file to be added once finalized.]*
+
+---
+
+## 3. Tech Stack
 
 | Layer | Tool | Purpose |
-|-------|------|---------|
-| Compute | Databricks Community Edition | Spark processing, Unity Catalog |
-| Storage | Unity Catalog Volumes | Raw file ingestion (DBFS disabled) |
-| Transformation | dbt-core + dbt-databricks | Medallion architecture, tests, docs |
-| Languages | PySpark | Data engineering (Bronze ingestion) |
-| | Python 3.11 | Data science modeling |
-| | SQL | dbt models |
-| Libraries | scikit-learn | K-Means, Logistic Regression, Random Forest |
-| | lifetimes | BG/NBD + Gamma-Gamma (attempted) |
-| | pandas, numpy, matplotlib, seaborn | EDA & visualization |
-| Virtual Envs | uv | dbt venv + datascience venv (isolated) |
-| Version Control | Git + GitHub | Portfolio hosting |
-| BI | Power BI (planned) | Executive dashboards |
+|---|---|---|
+| Compute | Databricks (Unity Catalog) | Ingestion, raw EDA, and all modeling notebooks |
+| Storage | Unity Catalog Volumes + Delta tables | Raw file landing + Bronze/Silver/Gold tables |
+| Transformation | dbt-core (run locally) + `dbt-databricks` adapter | Silver cleaning, Gold mart building, schema tests |
+| Languages | SQL (dbt models), Python (notebooks) | Transformation logic and modeling |
+| ML / Stats libraries | scikit-learn (`KMeans`, `LogisticRegression`, `RandomForestClassifier`), `lifetimes` (BG/NBD attempt) | Segmentation and churn/CLV modeling |
+| Data libraries | pandas, numpy | Notebook-side data handling |
+| Visualization | matplotlib, seaborn | EDA and model-output charts |
+| Version control | Git + GitHub | Portfolio hosting |
+| BI | Power BI / interactive HTML dashboard | Stakeholder-facing views |
+
+**dbt project configuration** (from `dbt_project.yml`, reproduced exactly):
+
+```yaml
+name: 'customer_churn_dbt'
+version: '1.0.0'
+config-version: 2
+
+profile: 'customer_churn_dbt'
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  customer_churn_dbt:
+    +materialized: table
+    +file_format: delta
+    silver:
+      +schema: silver
+    gold:
+      +schema: gold
+```
+
+> **Note on versions:** `dbt_project.yml` does not pin a `require-dbt-version`, and the exact `dbt-core`/`dbt-databricks` package versions used are not recorded elsewhere in the project artifacts available for this documentation. Stating this directly rather than guessing a version number.
 
 ---
 
-## Data Flow Summary
+## 4. Repository Structure
 
 ```
-Raw CSV (541K rows)
-    -> PySpark ingestion -> bronze.online_retail (541K)
-    -> dbt Silver cleaning -> silver.stg_transactions (~392K)
-    -> dbt Gold aggregation -> gold.mart_* (3 marts)
-    -> Python modeling -> enriched tables + visualizations
-    -> Power BI -> stakeholder dashboards
+customer-churn-intelligence/
+├── dbt_transformation/customer_churn_dbt/
+│   ├── models/
+│   │   ├── silver/
+│   │   │   ├── stg_transactions.sql
+│   │   │   └── stg_customers.sql
+│   │   └── gold/
+│   │       ├── mart_customer_segments.sql
+│   │       ├── mart_clv_projections.sql
+│   │       └── mart_churn_risk.sql
+│   ├── models/sources.yml
+│   ├── models/schema.yml
+│   ├── macros/generate_schema_name.sql
+│   ├── tests/
+│   └── dbt_project.yml
+├── notebooks/
+│   ├── customer_churn_EDA.ipynb              # Phase 1: raw EDA (pre-dbt)
+│   ├── 01_rfm_kmeans_clustering.ipynb         # Phase 3: RFM + K-Means
+│   ├── 02_CLV_churn.ipynb                     # Phase 3: CLV projection
+│   └── 03_Churn_Prediction.ipynb              # Phase 3: churn classification
+├── docs/
+│   ├── data_dictionary.md
+│   ├── data_audit.md
+│   ├── data_quality.md
+│   └── project_architecture.md
+├── outputs/
+│   └── charts/
+│       ├── 01_null_percentage.png
+│       ├── 02_quantity_unitprice_distribution.png
+│       ├── 03_transaction_volume_monthly.png
+│       ├── 04_top_countries.png
+│       ├── 05_customer_spend_frequency.png
+│       ├── 06_correlation_matrix.png
+│       ├── 07_elbow_silhouette.png
+│       ├── 08_rfm_segments.png
+│       ├── 09_rfm_3d.png
+│       ├── 10_clv_analysis.png
+│       ├── 11_roc_pr_curves.png
+│       └── 12_churn_drivers.png
+├── dashboard/                                  # [in progress]
+│   ├── index.html
+│   └── screenshots/
+├── README.md
 ```
 
-## Key Design Decisions
-
-| Decision | Rationale |
-|----------|-----------|
-| Unity Catalog over DBFS | DBFS disabled in Community Edition; UC Volumes are the native path |
-| PySpark for ingestion | Pandas cannot read from UC Volumes directly |
-| CSV over XLSX | Avoids openpyxl dependency issues and Apache Arrow crashes |
-| dbt for transformations | Version-controlled SQL, automated testing, documentation generation |
-| Heuristic CLV | BG/NBD failed convergence due to extreme dataset time scales; documented fallback |
-| Target leakage fix | Removed recency_days from churn model (it was the churn definition) |
-| Separate venvs | Prevents dbt-databricks from conflicting with scikit-learn dependencies |
-
----
-
-## Environments
-
-### Databricks
-- Catalog: customer_churn_project
-- Schemas: bronze, silver, gold
-- Volume: bronze.raw_files
-
-### Local (Windows)
-- Project Root: D:\Customer Churn Project\
-- dbt Project: D:\Customer Churn Project\dbt\customer_churn_dbt\
-- Profiles: C:\Users\HP\.dbt\profiles.yml
-- Virtual Envs: venvs\dbt\ (dbt-databricks) | venvs\datascience\ (scikit-learn)
-
----
-
-## dbt Models & Tests
-
-| Model | Layer | Tests | Purpose |
-|-------|-------|-------|---------|
-| stg_transactions | Silver | not_null, accepted_range, uniqueness | Clean transaction data |
-| stg_customers | Silver | not_null, unique, accepted_values | Clean customer profiles |
-| mart_customer_segments | Gold | not_null, unique, range checks, accepted_values | RFM segmentation |
-| mart_clv_projections | Gold | not_null, unique, range checks | CLV model inputs |
-| mart_churn_risk | Gold | not_null, unique, range checks, accepted_values | ML features |
-
-Total: 57 automated tests (55 passed, 2 caught edge cases -> fixed)
+*(The `airflow_orchestration/` folder referenced in an earlier README draft has been removed from this structure — no Airflow DAG exists in the current build. If orchestration is added later, this document should be updated to match.)*
