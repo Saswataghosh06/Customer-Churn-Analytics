@@ -7,3 +7,4 @@ env/
 # Ignore dbt profiles containing sensitive credentials
 profiles.yml
 **/profiles.yml
+images/
