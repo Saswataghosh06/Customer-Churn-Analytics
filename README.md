@@ -16,6 +16,11 @@
 <a href="https://github.com/Saswataghosh06/Customer-Churn-Analytics">GitHub Repo</a> · <a href="https://www.linkedin.com/in/saswata-ghosh06/">LinkedIn</a> · <a href="saswataghosh2022@gmail.com">Email</a></p>
 
 ---
+> **The headline:** A 12.9% "Cannot Lose Them" segment (559 customers) drives 
+> 62.8% of total revenue, while 1,841 customers (42.4%) are flagged Critical/
+> High churn risk — £422,992.80/year in exposed revenue against a total 
+> predicted 12-month CLV of £7.7M. Full breakdown → [business_insights.md](./docs/business_insights.md)
+
 
 ## Overview
 
@@ -24,6 +29,63 @@ A Medallion Architecture data pipeline that ingests 541K raw transactions from t
 On the analytical side, the pipeline surfaced that 53.7% of the customer base is dormant while 12.9% of customers drive 62.8% of revenue, and that 1,841 customers (42.4%) are at Critical or High churn risk, representing £423K in exposed annual revenue. Full business analysis with recommendations → [`docs/business_insights.md`](./docs/business_insights.md)
 
 > **Note:** This project is built on the public UCI Online Retail dataset with synthetic subscription and churn labels. It demonstrates end-to-end pipeline architecture, data quality practices, and modeling methodology.
+
+---
+
+## Key Findings
+
+> These findings are produced by the pipeline. Full analysis with evidence, charts, and prioritized recommendations → [`docs/business_insights.md`](./docs/business_insights.md)
+
+| Metric | Value |
+|---|---|
+| Customers analyzed | 4,338 |
+| Valid transactions (post-cleaning) | ~392,000 |
+| Total predicted 12-month CLV | **£7,702,146.93** |
+| Top 10% of customers' share of predicted CLV | 42.9% (£3,305,578.01) |
+| At-risk customers (Critical + High risk) | **1,841 (42.4%)** |
+| Revenue at risk | **£422,992.80/year** |
+| Best churn model | Random Forest, ROC-AUC 0.781 |
+| dbt tests passing | 57/57 |
+
+**Headline finding:** 53.7% of the customer base is dormant, while a 12.9% 'Cannot Lose Them' segment accounts for 62.8% of total customer revenue. Losing the wrong dozen customers matters more than losing the wrong thousand.
+
+### RFM Segmentation — The "Cannot Lose Them" Cluster
+
+<p align="center">
+<img width="50%" alt="Image" src="https://github.com/user-attachments/assets/d7bbe943-17d2-4c8c-b1e1-5a22208e6608" />
+</p>
+
+| Segment | Customers | Share | Revenue Share |
+|---|---:|---:|---:|
+| Lost / Dormant | 2,331 | 53.7% | 10.2% |
+| Loyal / Average | 1,448 | 33.4% | 27.0% |
+| **Cannot Lose Them** | **559** | **12.9%** | **62.8%** |
+
+The "Cannot Lose Them" cluster (orange) sits at high frequency/monetary with rising recency — the classic "was loyal, now fading" pattern.
+
+### Churn Model — After Target Leakage Fix
+
+<p align="center">
+<img width="80%" alt="Image" src="https://github.com/user-attachments/assets/6a5abe54-3d8f-4e85-95ee-ccba97c2fd28" />
+</p>
+
+| Model | ROC-AUC | 5-Fold CV |
+|---|---|---|
+| Logistic Regression | 0.775 | 0.775 (± 0.036) |
+| Random Forest | 0.781 | 0.783 (± 0.036) |
+
+Both models agree that `engagement_score` and `active_months` are top churn drivers, though they disagree on which is #1. The honest read: low engagement and fewer active months are directionally associated with churn, but the models don't fully agree on which single feature matters most.
+
+
+## Recommendations
+
+| Priority | Recommendation | Why |
+|---|---|---|
+| Do first | Launch a retention campaign targeted at the 559 "Cannot Lose Them" RFM customers | Directly addresses the segment holding 62.8% of customer revenue |
+| Do first | Build a monthly engagement program to raise `engagement_score` and `active_months` | Both models rank these as top churn drivers, even though they disagree on which ranks first |
+| Do first | Create a white-glove program for the 1,131 VIP-tier CLV customers | Protects £4.96M of the £7.7M predicted value pool |
+
+Full prioritized roadmap → [business_insights.md](./docs/business_insights.md#6-recommendations)
 
 ---
 
@@ -312,52 +374,6 @@ models:
 | **CLV method** | Heuristic (AOV × Freq/Month × 12) | Revisit BG/NBD + Gamma-Gamma with better frequency handling, or use a different probabilistic model |
 | **Holdout validation** | No time-split holdout for CLV | Add a time-based holdout to validate CLV predictions against actual future spend |
 | **Feature store** | Features computed in `mart_churn_risk` only | Extract features into a reusable feature store for multiple models |
-
----
-
-## Key Findings
-
-> These findings are produced by the pipeline. Full analysis with evidence, charts, and prioritized recommendations → [`docs/business_insights.md`](./docs/business_insights.md)
-
-| Metric | Value |
-|---|---|
-| Customers analyzed | 4,338 |
-| Valid transactions (post-cleaning) | ~392,000 |
-| Total predicted 12-month CLV | **£7,702,146.93** |
-| Top 10% of customers' share of predicted CLV | 42.9% (£3,305,578.01) |
-| At-risk customers (Critical + High risk) | **1,841 (42.4%)** |
-| Revenue at risk | **£422,992.80/year** |
-| Best churn model | Random Forest, ROC-AUC 0.781 |
-| dbt tests passing | 57/57 |
-
-**Headline finding:** 53.7% of the customer base is dormant, while a 12.9% 'Cannot Lose Them' segment accounts for 62.8% of total customer revenue. Losing the wrong dozen customers matters more than losing the wrong thousand.
-
-### RFM Segmentation — The "Cannot Lose Them" Cluster
-
-<p align="center">
-<img width="50%" alt="Image" src="https://github.com/user-attachments/assets/d7bbe943-17d2-4c8c-b1e1-5a22208e6608" />
-</p>
-
-| Segment | Customers | Share | Revenue Share |
-|---|---:|---:|---:|
-| Lost / Dormant | 2,331 | 53.7% | 10.2% |
-| Loyal / Average | 1,448 | 33.4% | 27.0% |
-| **Cannot Lose Them** | **559** | **12.9%** | **62.8%** |
-
-The "Cannot Lose Them" cluster (orange) sits at high frequency/monetary with rising recency — the classic "was loyal, now fading" pattern.
-
-### Churn Model — After Target Leakage Fix
-
-<p align="center">
-<img width="80%" alt="Image" src="https://github.com/user-attachments/assets/6a5abe54-3d8f-4e85-95ee-ccba97c2fd28" />
-</p>
-
-| Model | ROC-AUC | 5-Fold CV |
-|---|---|---|
-| Logistic Regression | 0.775 | 0.775 (± 0.036) |
-| Random Forest | 0.781 | 0.783 (± 0.036) |
-
-Both models agree that `engagement_score` and `active_months` are top churn drivers, though they disagree on which is #1. The honest read: low engagement and fewer active months are directionally associated with churn, but the models don't fully agree on which single feature matters most.
 
 ---
 
