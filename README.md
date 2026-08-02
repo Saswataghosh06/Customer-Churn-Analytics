@@ -123,7 +123,6 @@ Raw CSV (541,909 rows)
 
 <div align="center">
 <img width="100%" alt="ERD placeholder — replace with draw.io export" src="https://via.placeholder.com/1200x400/1a1a2e/eee?text=ERD+Diagram+Placeholder%0A2+Staging+Models+%7C+3+Gold+Marts+%7C+3+Enriched+Marts" />
-<br><sub>⬆️ Replace this placeholder with your ERD diagram from draw.io</sub>
 </div>
 
 ### Staging Models
