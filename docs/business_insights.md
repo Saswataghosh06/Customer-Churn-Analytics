@@ -27,10 +27,9 @@
 - [4. Data Audit & Quality](#4-data-audit--quality)
 - [5. Insights Deep Dive](#5-insights-deep-dive)
 - [6. Recommendations](#6-recommendations)
-- [7. Interactive Dashboard](#7-interactive-dashboard)
-- [8. Tech Stack & Architecture](#8-tech-stack--architecture)
-- [9. Caveats & Assumptions](#9-caveats--assumptions)
-- [10. Documentation Index](#10-documentation-index)
+- [7. Tech Stack & Architecture](#7-tech-stack--architecture)
+- [8. Caveats & Assumptions](#8-caveats--assumptions)
+- [9. Documentation Index](#9-documentation-index)
 
 ---
 
