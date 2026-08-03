@@ -1,6 +1,22 @@
-# Data Dictionary
+<div align="center">
+<img width="1584" height="396" alt="Image" src="https://github.com/user-attachments/assets/2e5917b7-addb-46fc-8897-35ffdf235fbd" />
+</div>
 
-**Project:** Customer Churn Intelligence Platform  
+<h1 align="center">Customer Churn Analytics</h1>
+<h3 align="center">Medallion Pipeline on Databricks · 541K Transactions → 3 Gold Marts · Churn ML with Target Leakage Fix</h3>
+
+<p align="center">
+  <img alt="status" src="https://img.shields.io/badge/status-portfolio_project-1E3A5F?style=flat-square">
+  <img alt="data" src="https://img.shields.io/badge/data-UCI%20Online%20Retail%20(UK)-8B98AE?style=flat-square">
+  <img alt="stack" src="https://img.shields.io/badge/stack-Databricks%20%7C%20dbt--core%20%7C%20Python-1E3A5F?style=flat-square">
+  <img alt="scale" src="https://img.shields.io/badge/customers-4%2C338%20%7C%20transactions-541K%20%7C%20predicted%20CLV-%C2%A37.7M-12A879?style=flat-square">
+</p>
+
+<p align="center"><b>Saswata Ghosh</b><br>
+<a href="https://github.com/Saswataghosh06/Customer-Churn-Analytics">GitHub Repo</a> · <a href="https://www.linkedin.com/in/saswata-ghosh06/">LinkedIn</a> · <a href="saswataghosh2022@gmail.com">Email</a></p>
+
+---
+
 **Catalog:** `customer_churn_project` (Databricks Unity Catalog)  
 **Schemas:** `bronze` → `silver` → `gold`  
 **Last updated:** derived directly from `sources.yml`, `schema.yml`, and the dbt model SQL in the current codebase. No fields below are inferred beyond what is explicitly stated.
