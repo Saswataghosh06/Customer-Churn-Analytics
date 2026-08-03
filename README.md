@@ -122,7 +122,7 @@ Raw CSV (541,909 rows)
 ### Star Schema
 
 <div align="center">
-<img width="100%" alt="ERD placeholder — replace with draw.io export" src="https://via.placeholder.com/1200x400/1a1a2e/eee?text=ERD+Diagram+Placeholder%0A2+Staging+Models+%7C+3+Gold+Marts+%7C+3+Enriched+Marts" />
+<img width="3197" height="2486" alt="Image" src="https://github.com/user-attachments/assets/ba95e7ef-ed53-4baa-8c13-37c215401d81" />
 </div>
 
 ### Staging Models
