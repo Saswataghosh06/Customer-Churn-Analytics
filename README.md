@@ -21,6 +21,7 @@
 > **The headline:** A 12.9% "Cannot Lose Them" segment (559 customers) drives 62.8% of total revenue, while 1,841 customers (42.4%) are flagged Critical/High churn risk — £422,992.80/year in exposed revenue against a total predicted 12-month CLV of £7.7M.
 
 **🎯 Strategy & Impact:** [Executive Summary](#3-executive-summary) → [Recommendations](#6-recommendations)
+
 **⚙️ Architecture & Engineering:** [Data Model](#8-data-model) → [Pipeline & Orchestration](#10-pipeline--orchestration)
 
 ---
