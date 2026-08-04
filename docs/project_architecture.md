@@ -114,6 +114,9 @@ Power BI / Interactive Dashboard
 | Version control | Git + GitHub | Portfolio hosting |
 | BI | Power BI / interactive HTML dashboard | Stakeholder-facing views |
 
+<details>
+<summary><b>🔧 dbt Project Configuration (Click to Expand)</b></summary>
+
 **dbt project configuration** (from `dbt_project.yml`, reproduced exactly):
 
 ```yaml
@@ -147,9 +150,14 @@ models:
 
 > **Note on versions:** `dbt_project.yml` does not pin a `require-dbt-version`, and the exact `dbt-core`/`dbt-databricks` package versions used are not recorded elsewhere in the project artifacts available for this documentation. Stating this directly rather than guessing a version number.
 
+</details>
+
 ---
 
 ## 4. Repository Structure
+
+<details>
+<summary><b>📁 Full Directory Tree (Click to Expand)</b></summary>
 
 ```
 customer-churn-intelligence/
@@ -197,3 +205,5 @@ customer-churn-intelligence/
 ├── README.md
 ```
 
+</details>
+```
